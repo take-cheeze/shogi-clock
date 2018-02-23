@@ -1,11 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
-
-	termbox "github.com/nsf/termbox-go"
 )
 
 type Output interface {
@@ -24,17 +23,15 @@ func test(ch chan int, no int) {
 }
 
 func main() {
-	termbox.Init()
-	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
-	StartDisplay()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	StartDisplay(ctx)
 	dispL := NewDisplay(LEFT)
 	dispR := NewDisplay(RIGHT)
 	dispL.Print(612)
 	dispR.Print(1231)
-	termbox.Flush()
 	time.Sleep(5 * time.Second)
-	EndDisplay()
-	termbox.Close()
 	//fmt.Println("hello world.")
 
 	// ch := make(chan int)
