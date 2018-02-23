@@ -31,7 +31,7 @@ const Y_MARGIN = 7
 const DIV = 10
 const CHARCTOR = 'a'
 
-const BLINK_PERIOD_MS = 250
+const BLINK_PERIOD_MS = 500
 
 var COLON_MAP = [][]bool{
 	{false, false, false, false, false},
@@ -114,9 +114,6 @@ var NUM_MAP = [][][]bool{
 		{false, false, false, false, true},
 		{true, true, true, true, true}}}
 
-var dispRequest = make(chan *Display)
-var exitRequest = make(chan bool)
-
 func NewDisplay(ctx context.Context) *Display {
 	var display Display
 	for side := 0; side < SIDES; side++ {
@@ -126,19 +123,12 @@ func NewDisplay(ctx context.Context) *Display {
 		display.times[side].disp = false
 	}
 	go func(display *Display, ctx context.Context) {
-
 		t := time.NewTicker(BLINK_PERIOD_MS * time.Millisecond)
-
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
-				offset := 0
-				printBothTime(&display.times, offset)
-				termbox.Flush()
-			case display := <-dispRequest:
 				termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 				offset := 0
 				printBothTime(&display.times, offset)
@@ -153,7 +143,6 @@ func (display *Display) Print(side int, sec int) {
 	display.times[side].min = sec / 60
 	display.times[side].sec = sec % 60
 	display.times[side].disp = true
-	dispRequest <- display
 }
 
 func (display *Display) BlinkOn(side int) {
