@@ -2,28 +2,36 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"github.com/nsf/termbox-go"
 )
 
-type Display struct {
-	side   int
-	offset int
-	min    int
-	sec    int
-}
-
 const (
 	LEFT = iota
 	RIGHT
+	SIDES
 )
+
+type Time struct {
+	min   int
+	sec   int
+	blink bool
+	disp  bool
+}
+type Display struct {
+	times [SIDES]Time
+}
 
 const Y_PER_DISIT = 7
 const X_PER_DISIT = 5
 const X_PADDING = 1
-const OFFSET_DISITS = 6
+const X_MARGIN = 7
+const Y_MARGIN = 7
 const DIV = 10
 const CHARCTOR = 'a'
+
+const BLINK_PERIOD_MS = 250
 
 var COLON_MAP = [][]bool{
 	{false, false, false, false, false},
@@ -109,88 +117,107 @@ var NUM_MAP = [][][]bool{
 var dispRequest = make(chan *Display)
 var exitRequest = make(chan bool)
 
-func StartDisplay(ctx context.Context) {
-	go func(ctx context.Context) {
-		termbox.Init()
-		defer termbox.Close()
+func NewDisplay(ctx context.Context) *Display {
+	var display Display
+	for side := 0; side < SIDES; side++ {
+		display.times[side].min = 0
+		display.times[side].sec = 0
+		display.times[side].blink = false
+		display.times[side].disp = false
+	}
+	go func(display *Display, ctx context.Context) {
 
-		termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+		t := time.NewTicker(BLINK_PERIOD_MS * time.Millisecond)
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
+			case <-t.C:
+				termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+				offset := 0
+				printBothTime(&display.times, offset)
+				termbox.Flush()
 			case display := <-dispRequest:
-				offset := display.offset
-				min := display.min
-				sec := display.sec
-
-				for disit := 0; disit < 2; disit++ {
-					output := min / DIV % DIV
-					display.printDisit(output, offset)
-					min *= DIV
-					offset++
-				}
-
-				display.printColon(offset)
-
-				offset++
-
-				for disit := 0; disit < 2; disit++ {
-					output := sec / DIV % DIV
-					display.printDisit(output, offset)
-					sec *= DIV
-					offset++
-				}
+				termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+				offset := 0
+				printBothTime(&display.times, offset)
 				termbox.Flush()
 			}
 		}
-	}(ctx)
-}
-
-func NewDisplay(side int) *Display {
-	var display Display
-
-	display.side = side
-	display.offset = side * OFFSET_DISITS
-	display.min = 0
-	display.sec = 0
-
+	}(&display, ctx)
 	return &display
 }
 
-func (display *Display) Print(sec int) {
-	display.min = sec / 60
-	display.sec = sec % 60
+func (display *Display) Print(side int, sec int) {
+	display.times[side].min = sec / 60
+	display.times[side].sec = sec % 60
+	display.times[side].disp = true
 	dispRequest <- display
 }
 
-func (display *Display) Blink() {
-
+func (display *Display) BlinkOn(side int) {
+	display.times[side].blink = true
 }
 
-func (display *Display) Off() {
-
+func (display *Display) BlinkOff(side int) {
+	display.times[side].blink = false
 }
 
-func (display *Display) printDisit(num int, offset int) {
-	offset *= (X_PADDING + X_PER_DISIT)
+func printBothTime(times *[SIDES]Time, offset int) int {
+	for side := 0; side < SIDES; side++ {
+		offset = printTime(&times[side], offset)
+		offset++
+	}
+	return offset
+}
+func printTime(time *Time, offset int) int {
+	if time.blink == true {
+		time.disp = !(time.disp)
+	} else {
+		time.disp = true
+	}
+	if time.disp == true {
+		offset = printTowDisit(time.min, offset)
+		offset = printColon(offset)
+		offset = printTowDisit(time.sec, offset)
+	} else {
+		offset += 2 + 1 + 2
+	}
+	return offset
+}
+
+func printTowDisit(num int, offset int) int {
+	for disit := 0; disit < 2; disit++ {
+		output := num / DIV % DIV
+		offset = printDisit(output, offset)
+		num *= DIV
+	}
+	return offset
+}
+
+func printDisit(num int, offset int) int {
+	offsetX := offset*(X_PADDING+X_PER_DISIT) + X_MARGIN
+	offsetY := Y_MARGIN
 	for x := 0; x < X_PER_DISIT; x++ {
 		for y := 0; y < Y_PER_DISIT; y++ {
 			if NUM_MAP[num][y][x] {
-				termbox.SetCell(x+offset, y, CHARCTOR, termbox.ColorDefault, termbox.ColorDefault)
+				termbox.SetCell(x+offsetX, y+offsetY, CHARCTOR, termbox.ColorDefault, termbox.ColorDefault)
 			}
 		}
 	}
+	return offset + 1
 }
 
-func (display *Display) printColon(offset int) {
-	offset *= (X_PADDING + X_PER_DISIT)
+func printColon(offset int) int {
+	offsetX := offset*(X_PADDING+X_PER_DISIT) + X_MARGIN
+	offsetY := Y_MARGIN
 	for x := 0; x < X_PER_DISIT; x++ {
 		for y := 0; y < Y_PER_DISIT; y++ {
 			if COLON_MAP[y][x] {
-				termbox.SetCell(x+offset, y, CHARCTOR, termbox.ColorDefault, termbox.ColorDefault)
+				termbox.SetCell(x+offsetX, y+offsetY, CHARCTOR, termbox.ColorDefault, termbox.ColorDefault)
 			}
 		}
 	}
+	return offset + 1
 }

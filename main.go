@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+
+	termbox "github.com/nsf/termbox-go"
 )
 
 type Output interface {
@@ -26,29 +28,14 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	StartDisplay(ctx)
-	dispL := NewDisplay(LEFT)
-	dispR := NewDisplay(RIGHT)
-	dispL.Print(612)
-	dispR.Print(1231)
+	termbox.Init()
+	defer termbox.Close()
+	disp := NewDisplay(ctx)
+	disp.Print(LEFT, 612)
+	disp.Print(RIGHT, 1231)
+	disp.BlinkOn(LEFT)
 	time.Sleep(5 * time.Second)
-	//fmt.Println("hello world.")
-
-	// ch := make(chan int)
-
-	// go test(ch, 1)
-	// go test(ch, 2)
-	// go test(ch, 3)
-
-	// <-ch
-	// <-ch
-	// <-ch
-
-	// for {
-	// 	ret := <-ch
-	// 	fmt.Println(ret)
-	// 	if ret == 9 {
-	// 		break
-	// 	}
-	// }
+	disp.BlinkOn(RIGHT)
+	disp.BlinkOff(LEFT)
+	time.Sleep(5 * time.Second)
 }
